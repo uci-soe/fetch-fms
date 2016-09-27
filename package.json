@@ -1,0 +1,21 @@
+{
+  "name": "fetch-fms",
+  "version": "1.0.0",
+  "description": "Fetch Files from a FileMaker Server and export as CSV/JSON to Files or Zip",
+  "main": "index.js",
+  "bin": "./bin/fetch-fms",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Rhett Lowe",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "archiver": "^1.1.0",
+    "csv-stringify": "^1.0.4",
+    "extend": "^3.0.0",
+    "fms-js": "^0.2.7",
+    "mkdirp": "^0.5.1",
+    "user-home": "^2.0.0",
+    "yargs": "^5.0.0"
+  }
+}

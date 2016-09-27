@@ -1,0 +1,200 @@
+#!/usr/bin/env node
+'use strict';
+
+const path   = require('path');
+const fs     = require('fs');
+const mkdirp = require('mkdirp');
+const yargs  = require('yargs');
+const home   = require('user-home');
+const fetch  = require('../index');
+const output = require('../lib/output');
+
+let config;
+try {
+  let confLoc = path.resolve(home, '.fetchFms.json');
+  config      = JSON.parse(fs.readFileSync(confLoc));
+} catch (err) {
+  if (!/ENOENT/.test(err.message)) {
+    throw err;
+  } else {
+    config = {};
+  }
+}
+
+
+let args = yargs
+      .usage('Usage: $0 [options] <layouts>')
+      .example('$0 layout_1 layout_2', 'get all data from layouts "layout_1" and "layout_2"')
+      .version()
+
+
+      .option('h', {
+        alias:    'host',
+        describe: 'URL of remote FileMaker Server Host',
+        type:     'string'
+      })
+      .option('u', {
+        alias:    'username',
+        describe: 'Username of login credentials',
+        type:     'string'
+      })
+      .option('p', {
+        alias:    'password',
+        describe: 'Password of login credentials',
+        type:     'string'
+      })
+      .option('d', {
+        alias:    'database',
+        describe: 'Database/FileMaker filename on host',
+        type:     'string'
+      })
+      .option('G', {
+        alias:    'get-all',
+        describe: 'Get all layouts from specified FileMaker Server',
+        type:     'boolean'
+      })
+      .option('l', {
+        alias:    'layouts',
+        describe: 'list of layouts, space separated; same as the non-option layouts',
+        type:     'array'
+      })
+      .option('o', {
+        alias:    'output',
+        describe: 'Directory to put layout data, 1 file per layout',
+        type:     'string',
+        coerce:   loc => path.resolve(process.cwd(), loc)
+      })
+      .option('C', {
+        alias:    'csv',
+        describe: 'output as CSV',
+        type:     'boolean'
+      })
+      .option('csv-no-headers', {
+        describe: 'if true, no CSV headers',
+        type:     'boolean'
+      })
+      .option('J', {
+        alias:    'json',
+        describe: 'output as minified JSON',
+        type:     'boolean'
+      })
+      .option('P', {
+        alias:    'pretty-json',
+        describe: 'output as pretty JSON; tab=2 spaces; defaults true, set alternative output to unset',
+        type:     'boolean',
+        coerce:   function () {
+          return true;
+        }
+      })
+      .option('z', {
+        alias:    'zip',
+        describe: 'output generated layouts to zip archive',
+        type:     'boolean'
+      })
+
+
+      .option('D', {
+        alias: 'debug',
+        describe: 'For testing purposes: show yargs.argv object and exit',
+        type: 'boolean'
+      })
+
+
+      .strict()
+      .help('help')
+      .epilog('Rhett Lowe - 2016')
+      .wrap(Math.min(120, yargs.terminalWidth()))
+      .default(config)
+      .argv
+  ;
+
+
+if (args.debug === true) {
+  output.stdout(JSON.stringify(args, null, 2));
+  process.exit(0);
+}
+
+
+let prom = Promise
+      .resolve(args.getAll
+        ? fetch.layoutNames(args)
+        : (args._.length ? args._ : args.layouts)
+      )
+      .then(layouts => fetch(layouts, args))
+
+      .then(data => {
+        if (args.csv) {
+          data = data.map(results => {
+            return output.toCSV(results.data, args.csvNoHeaders)
+              .then(out => ({
+                layout:  results.layout,
+                type:    'csv',
+                headers: args.csvNoHeaders,
+                content: out
+              }))
+          });
+        } else if (args.json) {
+          data = data.map(results => {
+            return output.toUglyJSON(results.data)
+              .then(out => ({
+                layout:  results.layout,
+                type:    'json',
+                content: out
+              }))
+          });
+        } else if (args.prettyJson) {
+          data = data.map(results => {
+            return output.toPrettyJSON(results.data)
+              .then(out => ({
+                layout:  results.layout,
+                type:    'json',
+                content: out
+              }))
+          });
+        }
+
+        return Promise.all(data);
+      })
+
+      .then(data => {
+        if (args.zip) {
+          let archive = output.zip(data.map(d => {
+            return {name: `${d.layout}.${d.type}`, content: d.content}
+          }));
+
+          archive.on('error', err => {throw err});
+
+          if (args.output) {
+            return output.file(args.output, archive);
+          } else {
+            return output.stdout(archive);
+          }
+        } else {
+          if (args.output) {
+            if (data.length === 1) {
+              return output
+                .file(args.output, data[0].content)
+                .then(() => data)
+                ;
+            } else {
+              return data.map(res => {
+                return output
+                  .file(path.join(args.output, `${res.layout}.${res.type}`), res.content)
+                  .then(() => res)
+                  ;
+              });
+            }
+          } else {
+            return data.map(res => {
+              output.stdout(res.content);
+
+              return res;
+            });
+          }
+        }
+      })
+
+      .catch(err => {
+        throw err;
+      })
+  ;
