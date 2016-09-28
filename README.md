@@ -29,7 +29,7 @@ fetch-fms --output /tmp/layouts people jobs addresses --json
 # find all people with "john" in their name
 fetch-fms people | grep john
 
-# save each layout, people, places, things, as an archive in CSV format
+# save each layout, people, places, and things, each as archives in CSV format
 for LAYOUT in "people" "places" "things" 
 do 
   fetch-fms $LAYOUT --zip --output "${LAYOUT}.zip" --csv
