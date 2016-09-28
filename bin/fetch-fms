@@ -21,7 +21,6 @@ try {
   }
 }
 
-
 let args = yargs
       .usage('Usage: $0 [options] <layouts>')
       .example('$0 layout_1 layout_2', 'get all data from layouts "layout_1" and "layout_2"')
@@ -98,6 +97,11 @@ let args = yargs
         describe: 'For testing purposes: show yargs.argv object and exit',
         type: 'boolean'
       })
+      .option('S', {
+        alias: 'save-settings',
+        describe: 'Save settings into defaults configuration file at ~/.fetchFms.json',
+        type: 'boolean'
+      })
 
 
       .strict()
@@ -113,88 +117,108 @@ if (args.debug === true) {
   output.stdout(JSON.stringify(args, null, 2));
   process.exit(0);
 }
+if (args.saveSettings) {
+  delete args.S;
+  delete args.saveSettings;
+  delete args['save-settings'];
+
+  delete args.D;
+  delete args.debug;
+
+  fs.writeFileSync(path.resolve(home, '.fetchFms.json'), JSON.stringify(args, null, 2), err => {
+    if (err) {
+      throw err;
+    } else {
+      process.exit(0);
+    }
+  });
+} else {
 
 
-let prom = Promise
-      .resolve(args.getAll
-        ? fetch.layoutNames(args)
-        : (args._.length ? args._ : args.layouts)
-      )
-      .then(layouts => fetch(layouts, args))
+  let prom = Promise
+        .resolve(args.getAll
+          ? fetch.layoutNames(args)
+          : (args._.length ? args._ : args.layouts)
+        )
+        .then(layouts => fetch(layouts, args))
 
-      .then(data => {
-        if (args.csv) {
-          data = data.map(results => {
-            return output.toCSV(results.data, args.csvNoHeaders)
-              .then(out => ({
-                layout:  results.layout,
-                type:    'csv',
-                headers: args.csvNoHeaders,
-                content: out
-              }))
-          });
-        } else if (args.json) {
-          data = data.map(results => {
-            return output.toUglyJSON(results.data)
-              .then(out => ({
-                layout:  results.layout,
-                type:    'json',
-                content: out
-              }))
-          });
-        } else if (args.prettyJson) {
-          data = data.map(results => {
-            return output.toPrettyJSON(results.data)
-              .then(out => ({
-                layout:  results.layout,
-                type:    'json',
-                content: out
-              }))
-          });
-        }
-
-        return Promise.all(data);
-      })
-
-      .then(data => {
-        if (args.zip) {
-          let archive = output.zip(data.map(d => {
-            return {name: `${d.layout}.${d.type}`, content: d.content}
-          }));
-
-          archive.on('error', err => {throw err});
-
-          if (args.output) {
-            return output.file(args.output, archive);
-          } else {
-            return output.stdout(archive);
-          }
-        } else {
-          if (args.output) {
-            if (data.length === 1) {
-              return output
-                .file(args.output, data[0].content)
-                .then(() => data)
-                ;
-            } else {
-              return data.map(res => {
-                return output
-                  .file(path.join(args.output, `${res.layout}.${res.type}`), res.content)
-                  .then(() => res)
-                  ;
-              });
-            }
-          } else {
-            return data.map(res => {
-              output.stdout(res.content);
-
-              return res;
+        .then(data => {
+          if (args.csv) {
+            data = data.map(results => {
+              return output.toCSV(results.data, args.csvNoHeaders)
+                .then(out => ({
+                  layout:  results.layout,
+                  type:    'csv',
+                  headers: args.csvNoHeaders,
+                  content: out
+                }))
+            });
+          } else if (args.json) {
+            data = data.map(results => {
+              return output.toUglyJSON(results.data)
+                .then(out => ({
+                  layout:  results.layout,
+                  type:    'json',
+                  content: out
+                }))
+            });
+          } else if (args.prettyJson) {
+            data = data.map(results => {
+              return output.toPrettyJSON(results.data)
+                .then(out => ({
+                  layout:  results.layout,
+                  type:    'json',
+                  content: out
+                }))
             });
           }
-        }
-      })
 
-      .catch(err => {
-        throw err;
-      })
-  ;
+          return Promise.all(data);
+        })
+
+        .then(data => {
+          if (args.zip) {
+            let archive = output.zip(data.map(d => {
+              return {name: `${d.layout}.${d.type}`, content: d.content}
+            }));
+
+            archive.on('error', err => {
+              throw err
+            });
+
+            if (args.output) {
+              return output.file(args.output, archive);
+            } else {
+              return output.stdout(archive);
+            }
+          } else {
+            if (args.output) {
+              if (data.length === 1) {
+                return output
+                  .file(args.output, data[0].content)
+                  .then(() => data)
+                  ;
+              } else {
+                return data.map(res => {
+                  return output
+                    .file(path.join(args.output, `${res.layout}.${res.type}`), res.content)
+                    .then(() => res)
+                    ;
+                });
+              }
+            } else {
+              return data.map(res => {
+                output.stdout(res.content);
+
+                return res;
+              });
+            }
+          }
+        })
+
+        .catch(err => {
+          throw err;
+        })
+    ;
+
+}
