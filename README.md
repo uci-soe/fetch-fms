@@ -5,7 +5,7 @@ Intended to download and archive FileMaker Layouts for reading with other progra
 ## Install
 
 ```
-$ npm instal fetch-fms
+$ npm install --global uci-soe/fetch-fms
 ```
 
 ## Usage
