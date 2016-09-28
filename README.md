@@ -11,6 +11,7 @@ $ npm instal fetch-fms
 ## Usage
 
 ```
+-- Read the help
 $ fetch-fms --help
 
 -- Get layout foo from foobar@location.com using user and password hello and world
